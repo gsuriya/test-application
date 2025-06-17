@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef, useEffect } from "react"
 import { Camera, Mic, MicOff, Volume2, VolumeX, Circle } from "lucide-react"
 import AnimatedBackground from "./components/AnimatedBackground"
 import VoiceAgent from "./components/VoiceAgent"
@@ -9,6 +9,28 @@ import Link from "next/link"
 export default function HomePage() {
   const [isMicOn, setIsMicOn] = useState(false)
   const [isSpeakerOn, setIsSpeakerOn] = useState(true)
+  const videoRef = useRef<HTMLVideoElement>(null)
+
+  useEffect(() => {
+    async function enableCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true })
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream
+        }
+      } catch (err) {
+        // Optionally handle error (e.g., show a message)
+      }
+    }
+    enableCamera()
+    // Cleanup: stop camera when component unmounts
+    return () => {
+      if (videoRef.current && videoRef.current.srcObject) {
+        const tracks = (videoRef.current.srcObject as MediaStream).getTracks()
+        tracks.forEach((track) => track.stop())
+      }
+    }
+  }, [])
 
   return (
     <div className="relative min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-pink-900">
@@ -16,16 +38,16 @@ export default function HomePage() {
 
       {/* Camera Preview */}
       <div className="relative h-screen w-full overflow-hidden">
+        {/* Camera Feed as Background */}
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          className="absolute inset-0 w-full h-full object-cover z-0"
+          style={{ background: '#111' }}
+        />
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/50 z-10" />
-
-        {/* Simulated camera feed */}
-        <div className="w-full h-full bg-gray-800 flex items-center justify-center">
-          <div className="text-center text-gray-400">
-            <Camera size={64} className="mx-auto mb-4 opacity-50" />
-            <p>Camera Preview</p>
-            <p className="text-sm">(Live feed will appear here)</p>
-          </div>
-        </div>
 
         {/* Voice Agent */}
         <VoiceAgent />
