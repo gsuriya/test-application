@@ -10,6 +10,7 @@ export default function HomePage() {
   const [isMicOn, setIsMicOn] = useState(false)
   const [isSpeakerOn, setIsSpeakerOn] = useState(true)
   const videoRef = useRef<HTMLVideoElement>(null)
+  const audioStreamRef = useRef<MediaStream | null>(null)
 
   useEffect(() => {
     async function enableCamera() {
@@ -29,8 +30,31 @@ export default function HomePage() {
         const tracks = (videoRef.current.srcObject as MediaStream).getTracks()
         tracks.forEach((track) => track.stop())
       }
+      if (audioStreamRef.current) {
+        audioStreamRef.current.getTracks().forEach((track) => track.stop())
+        audioStreamRef.current = null
+      }
     }
   }, [])
+
+  useEffect(() => {
+    if (isMicOn) {
+      // Enable microphone
+      navigator.mediaDevices.getUserMedia({ audio: true })
+        .then((stream) => {
+          audioStreamRef.current = stream
+        })
+        .catch(() => {
+          setIsMicOn(false)
+        })
+    } else {
+      // Disable microphone
+      if (audioStreamRef.current) {
+        audioStreamRef.current.getTracks().forEach((track) => track.stop())
+        audioStreamRef.current = null
+      }
+    }
+  }, [isMicOn])
 
   return (
     <div className="relative min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-pink-900">
