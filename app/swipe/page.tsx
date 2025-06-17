@@ -1,75 +1,118 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { X, Heart, Shirt, SlidersHorizontal, ArrowLeft } from "lucide-react"
 import Link from "next/link"
 import AnimatedBackground from "../components/AnimatedBackground"
 
-interface Outfit {
-  id: number
+interface Product {
+  id: string
   image: string
-  items: { brand: string; item: string; price: number }[]
+  description: string
+  type: string
+  color: string
+  graphic: string
+  variant: string
+  stock: number
+  price: string
+  created_at: string
+  stock_status: string
+}
+
+interface Outfit {
+  id: string
+  image: string
+  items: { brand: string; item: string; price: string }[]
   tags: string[]
-  totalPrice: number
+  totalPrice: string
   occasion: string
   vibe: string
 }
 
-const outfits: Outfit[] = [
-  {
-    id: 1,
-    image: "/placeholder.svg?height=600&width=400",
-    items: [
-      { brand: "Zara", item: "Oversized Blazer", price: 89 },
-      { brand: "H&M", item: "Wide Leg Trousers", price: 45 },
-      { brand: "Nike", item: "Air Force 1", price: 120 },
-    ],
-    tags: ["Professional", "Comfortable", "Cotton Blend"],
-    totalPrice: 254,
-    occasion: "Work",
-    vibe: "Minimalist",
-  },
-  {
-    id: 2,
-    image: "/placeholder.svg?height=600&width=400",
-    items: [
-      { brand: "ASOS", item: "Crop Top", price: 25 },
-      { brand: "Urban Outfitters", item: "High Waist Jeans", price: 78 },
-      { brand: "Converse", item: "Chuck Taylor", price: 65 },
-    ],
-    tags: ["Casual", "Y2K", "Denim"],
-    totalPrice: 168,
-    occasion: "Weekend",
-    vibe: "Bold",
-  },
-  {
-    id: 3,
-    image: "/placeholder.svg?height=600&width=400",
-    items: [
-      { brand: "Reformation", item: "Midi Dress", price: 148 },
-      { brand: "Jacquemus", item: "Mini Bag", price: 320 },
-      { brand: "Gianvito Rossi", item: "Heeled Sandals", price: 695 },
-    ],
-    tags: ["Elegant", "Date Night", "Silk"],
-    totalPrice: 1163,
-    occasion: "Party",
-    vibe: "Luxe",
-  },
-]
-
 export default function SwipePage() {
-  const [currentIndex, setCurrentIndex] = useState(0)
+  const [products, setProducts] = useState<Product[]>([])
+  const [currentOutfit, setCurrentOutfit] = useState<Outfit | null>(null)
   const [showFilters, setShowFilters] = useState(false)
   const [swipeDirection, setSwipeDirection] = useState<"left" | "right" | null>(null)
+  const [loading, setLoading] = useState(true)
 
-  const currentOutfit = outfits[currentIndex]
+  // Fetch products on component load
+  useEffect(() => {
+    async function fetchProducts() {
+      try {
+        // Fetch all products
+        const res = await fetch("https://backend-879168005744.us-west1.run.app/products")
+        const productList = await res.json()
+        
+        // Fetch display data for each product (includes base64 image)
+        const productDetails = await Promise.all(
+          productList.map(async (p: any) => {
+            const detailRes = await fetch(`https://backend-879168005744.us-west1.run.app/products/${p.id}/display`)
+            return await detailRes.json()
+          })
+        )
+        
+        setProducts(productDetails)
+        // Set initial random product
+        if (productDetails.length > 0) {
+          setCurrentOutfit(convertProductToOutfit(getRandomProduct(productDetails)))
+        }
+      } catch (err) {
+        console.error("Failed to load products:", err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchProducts()
+  }, [])
+
+  // Helper function to get random product
+  const getRandomProduct = (productList: Product[]) => {
+    const randomIndex = Math.floor(Math.random() * productList.length)
+    return productList[randomIndex]
+  }
+
+  // Convert product data to outfit format for existing UI
+  const convertProductToOutfit = (product: Product): Outfit => {
+    return {
+      id: product.id,
+      image: product.image,
+      items: [{ brand: "Fashion Item", item: product.description, price: product.price }],
+      tags: [product.type, product.color, product.variant].filter(Boolean),
+      totalPrice: product.price,
+      occasion: product.type,
+      vibe: product.color
+    }
+  }
 
   const handleSwipe = (direction: "left" | "right") => {
     setSwipeDirection(direction)
     setTimeout(() => {
-      setCurrentIndex((prev) => (prev + 1) % outfits.length)
+      // Randomly pick a new product on each swipe
+      if (products.length > 0) {
+        const newProduct = getRandomProduct(products)
+        setCurrentOutfit(convertProductToOutfit(newProduct))
+      }
       setSwipeDirection(null)
     }, 300)
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-pink-900 relative flex items-center justify-center">
+        <AnimatedBackground />
+        <div className="text-white text-xl">Loading outfits...</div>
+      </div>
+    )
+  }
+
+  if (!currentOutfit) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-pink-900 relative flex items-center justify-center">
+        <AnimatedBackground />
+        <div className="text-red-400 text-xl">No outfits available</div>
+      </div>
+    )
   }
 
   return (
@@ -93,7 +136,7 @@ export default function SwipePage() {
             }`}
           >
             <div className="relative h-full">
-              <img src={currentOutfit.image || "/placeholder.svg"} alt="Outfit" className="w-full h-2/3 object-cover" />
+              <img src={currentOutfit.image} alt="Outfit" className="w-full h-2/3 object-cover" />
 
               <div className="absolute top-4 right-4 flex space-x-2">
                 <span className="px-3 py-1 rounded-full bg-black/50 text-xs text-white">{currentOutfit.occasion}</span>
@@ -103,14 +146,14 @@ export default function SwipePage() {
               <div className="p-4 h-1/3 flex flex-col justify-between">
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-bold text-lg">${currentOutfit.totalPrice}</h3>
+                    <h3 className="font-bold text-lg">{currentOutfit.totalPrice}</h3>
                     <button className="text-purple-400 text-sm">View Breakdown</button>
                   </div>
 
                   <div className="space-y-1 mb-3">
                     {currentOutfit.items.map((item, index) => (
                       <p key={index} className="text-sm text-gray-300">
-                        {item.brand} {item.item} - ${item.price}
+                        {item.brand} {item.item} - {item.price}
                       </p>
                     ))}
                   </div>
