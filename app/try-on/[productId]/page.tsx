@@ -1,119 +1,223 @@
 "use client"
 
-import { useState } from "react"
-import { ArrowLeft, ShoppingCart, Camera, Mic, MicOff, Volume2, VolumeX, Circle } from "lucide-react"
+import { useState, useEffect, Suspense } from "react"
+import { ArrowLeft, RotateCcw, Loader2 } from "lucide-react"
 import Link from "next/link"
 import AnimatedBackground from "../../components/AnimatedBackground"
+import CameraCapture from "../../components/CameraCapture"
+import { runTryOn, pollUntilComplete } from "../../utils/fashnApi"
 
-export default function TryOnPage({ params }: { params: { productId: string } }) {
-  const [selectedSize, setSelectedSize] = useState("M")
-  const [showAddToCart, setShowAddToCart] = useState(false)
-  const [isMicOn, setIsMicOn] = useState(false)
-  const [isSpeakerOn, setSpeakerOn] = useState(true)
+function TryOnContent({ params }: { params: { productId: string } }) {
+  const [imageUrl, setImageUrl] = useState<string | null>(null)
+  const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null)
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [tryOnResult, setTryOnResult] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [showCamera, setShowCamera] = useState(false)
 
-  const sizes = ["XS", "S", "M", "L", "XL"]
+  useEffect(() => {
+    // Get image URL from localStorage
+    const storedImageUrl = localStorage.getItem('tryOnImageUrl')
+    if (storedImageUrl) {
+      setImageUrl(storedImageUrl)
+    }
+  }, [])
+
+  const handlePhotoCapture = (imageBase64: string) => {
+    setCapturedPhoto(imageBase64)
+    setShowCamera(false)
+  }
+
+  const handleTryOn = async () => {
+    if (!capturedPhoto || !imageUrl) {
+      setError('Missing photo or garment image')
+      return
+    }
+
+    setIsProcessing(true)
+    setError(null)
+
+    try {
+      // Start the try-on process
+      const predictionId = await runTryOn(capturedPhoto, imageUrl)
+      
+      // Poll for completion
+      const results = await pollUntilComplete(predictionId)
+      
+      if (results && results.length > 0) {
+        setTryOnResult(results[0])
+      } else {
+        setError('No result generated')
+      }
+    } catch (err) {
+      console.error('Try-on error:', err)
+      setError(err instanceof Error ? err.message : 'Try-on failed')
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const resetState = () => {
+    setCapturedPhoto(null)
+    setTryOnResult(null)
+    setError(null)
+    setShowCamera(true)
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-pink-900 relative">
+    <div className="relative min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-pink-900">
       <AnimatedBackground />
 
-      {/* Camera Preview with Overlay */}
-      <div className="relative h-screen w-full overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/50 z-10" />
-
-        {/* Simulated camera feed */}
-        <div className="w-full h-full bg-gray-800 flex items-center justify-center">
-          <div className="text-center text-gray-400">
-            <Camera size={64} className="mx-auto mb-4 opacity-50" />
-            <p>Virtual Try-On Camera</p>
-            <p className="text-sm">Outfit overlay will appear here</p>
-          </div>
-        </div>
-
-        {/* Outfit Overlay Simulation */}
-        <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
-          <div className="w-48 h-64 border-2 border-dashed border-purple-400 rounded-lg flex items-center justify-center">
-            <span className="text-purple-400 text-sm">Outfit Preview</span>
-          </div>
-        </div>
-
+      <div className="relative z-10 p-4 pb-24">
         {/* Header */}
-        <div className="absolute top-6 left-4 right-4 flex items-center justify-between z-30">
+        <div className="flex items-center justify-between mb-6">
           <Link href="/swipe" className="w-10 h-10 rounded-full glass-card flex items-center justify-center">
             <ArrowLeft size={20} />
           </Link>
-          <h1 className="text-lg font-bold">Virtual Try-On</h1>
-          <div className="w-10" />
+          <h1 className="text-xl font-bold">Virtual Try-On</h1>
+          <button
+            onClick={resetState}
+            className="w-10 h-10 rounded-full glass-card flex items-center justify-center"
+          >
+            <RotateCcw size={16} />
+          </button>
         </div>
 
-        {/* Size Selector */}
-        <div className="absolute top-24 left-4 right-4 z-30">
-          <div className="glass-card rounded-2xl p-4">
-            <h3 className="text-sm font-semibold mb-3">Select Size</h3>
-            <div className="flex space-x-2">
-              {sizes.map((size) => (
-                <button
-                  key={size}
-                  onClick={() => {
-                    setSelectedSize(size)
-                    setShowAddToCart(true)
-                  }}
-                  className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold transition-all duration-300 ${
-                    selectedSize === size
-                      ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white"
-                      : "glass-card text-gray-300 hover:text-white"
-                  }`}
-                >
-                  {size}
-                </button>
-              ))}
+        {/* Garment Image */}
+        {imageUrl && (
+          <div className="mb-6">
+            <div className="glass-card rounded-2xl p-4">
+              <h3 className="text-sm font-semibold mb-3">Garment to Try On</h3>
+              <img 
+                src={imageUrl} 
+                alt="Garment" 
+                className="w-full h-32 object-cover rounded-xl"
+              />
             </div>
           </div>
-        </div>
+        )}
 
-        {/* Add to Cart FAB */}
-        {showAddToCart && (
-          <div className="absolute bottom-32 right-6 z-30 animate-in slide-in-from-right-4">
-            <button className="w-16 h-16 rounded-full gradient-bg flex items-center justify-center text-white shadow-2xl hover:scale-110 transition-all duration-300 pulse-glow">
-              <ShoppingCart size={24} />
+        {/* Camera Section */}
+        {showCamera && (
+          <div className="mb-6">
+            <h3 className="text-lg font-semibold mb-4">Take Your Photo</h3>
+            <CameraCapture 
+              onCapture={handlePhotoCapture} 
+              isCapturing={isProcessing}
+            />
+          </div>
+        )}
+
+        {/* Captured Photo */}
+        {capturedPhoto && !showCamera && (
+          <div className="mb-6">
+            <div className="glass-card rounded-2xl p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold">Your Photo</h3>
+                <button
+                  onClick={() => setShowCamera(true)}
+                  className="text-xs text-purple-400 hover:text-purple-300"
+                >
+                  Retake
+                </button>
+              </div>
+              <img 
+                src={capturedPhoto} 
+                alt="Captured" 
+                className="w-full h-48 object-cover rounded-xl"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Try-On Button */}
+        {capturedPhoto && !isProcessing && !tryOnResult && (
+          <div className="mb-6">
+            <button
+              onClick={handleTryOn}
+              className="w-full py-4 rounded-2xl gradient-bg text-white font-semibold text-lg hover:scale-105 transition-all duration-300"
+            >
+              Generate Try-On
             </button>
           </div>
         )}
 
-        {/* Bottom Control Bar */}
-        <div className="absolute bottom-24 left-4 right-4 z-30">
-          <div className="glass-card rounded-3xl px-6 py-4">
-            <div className="flex justify-around items-center">
-              <button
-                onClick={() => setIsMicOn(!isMicOn)}
-                className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 ${
-                  isMicOn ? "bg-gradient-to-r from-green-500 to-emerald-500 text-white" : "bg-gray-700 text-gray-400"
-                }`}
-                aria-label="Toggle microphone"
-              >
-                {isMicOn ? <Mic size={20} /> : <MicOff size={20} />}
-              </button>
+        {/* Processing State */}
+        {isProcessing && (
+          <div className="mb-6">
+            <div className="glass-card rounded-2xl p-6 text-center">
+              <Loader2 size={32} className="animate-spin mx-auto mb-4 text-purple-400" />
+              <h3 className="text-lg font-semibold mb-2">Generating Your Try-On</h3>
+              <p className="text-gray-400 text-sm">This may take up to 40 seconds...</p>
+            </div>
+          </div>
+        )}
 
+        {/* Error State */}
+        {error && (
+          <div className="mb-6">
+            <div className="glass-card rounded-2xl p-4 border border-red-500/20">
+              <div className="text-red-400 mb-2">⚠️ Error</div>
+              <p className="text-gray-300 text-sm mb-4">{error}</p>
               <button
-                onClick={() => setSpeakerOn(!isSpeakerOn)}
-                className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 ${
-                  isSpeakerOn ? "bg-gradient-to-r from-blue-500 to-cyan-500 text-white" : "bg-gray-700 text-gray-400"
-                }`}
-                aria-label="Toggle speaker"
+                onClick={resetState}
+                className="px-4 py-2 rounded-xl bg-red-500/20 text-red-300 text-sm"
               >
-                {isSpeakerOn ? <Volume2 size={20} /> : <VolumeX size={20} />}
-              </button>
-
-              <button
-                className="w-16 h-16 rounded-full bg-gradient-to-r from-pink-500 to-rose-500 flex items-center justify-center text-white shadow-lg hover:scale-110 transition-all duration-300"
-                aria-label="Capture photo"
-              >
-                <Circle size={24} fill="currentColor" />
+                Try Again
               </button>
             </div>
           </div>
-        </div>
+        )}
+
+        {/* Try-On Result */}
+        {tryOnResult && (
+          <div className="mb-6">
+            <div className="glass-card rounded-2xl p-4">
+              <h3 className="text-lg font-semibold mb-4">Your Virtual Try-On Result</h3>
+              <img 
+                src={tryOnResult} 
+                alt="Try-on result" 
+                className="w-full rounded-xl shadow-lg"
+              />
+              <div className="mt-4 flex space-x-3">
+                <button
+                  onClick={resetState}
+                  className="flex-1 py-3 rounded-xl glass-card text-purple-400 font-semibold"
+                >
+                  Try Another
+                </button>
+                <button className="flex-1 py-3 rounded-xl gradient-bg text-white font-semibold">
+                  Save Result
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Instructions */}
+        {!capturedPhoto && !showCamera && (
+          <div className="text-center">
+            <button
+              onClick={() => setShowCamera(true)}
+              className="w-full py-4 rounded-2xl gradient-bg text-white font-semibold text-lg hover:scale-105 transition-all duration-300"
+            >
+              Take Photo to Start
+            </button>
+          </div>
+        )}
       </div>
     </div>
+  )
+}
+
+export default function TryOnPage({ params }: { params: { productId: string } }) {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-pink-900 flex items-center justify-center">
+        <Loader2 size={32} className="animate-spin text-white" />
+      </div>
+    }>
+      <TryOnContent params={params} />
+    </Suspense>
   )
 }

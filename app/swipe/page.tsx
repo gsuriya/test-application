@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { X, Heart, Shirt, SlidersHorizontal, ArrowLeft } from "lucide-react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import AnimatedBackground from "../components/AnimatedBackground"
 
 interface Product {
@@ -49,6 +50,7 @@ interface FilterState {
 }
 
 export default function SwipePage() {
+  const router = useRouter()
   const [products, setProducts] = useState<EnrichedProduct[]>([])
   const [filteredProducts, setFilteredProducts] = useState<EnrichedProduct[]>([])
   const [currentOutfit, setCurrentOutfit] = useState<Outfit | null>(null)
@@ -216,6 +218,14 @@ export default function SwipePage() {
     }, 300)
   }
 
+  const handleTryOn = () => {
+    if (currentOutfit) {
+      // Store image URL in localStorage to avoid URL length limits
+      localStorage.setItem('tryOnImageUrl', currentOutfit.image)
+      router.push(`/try-on/${currentOutfit.id}`)
+    }
+  }
+
   // Get unique values for filter options
   const getUniqueStores = () => {
     const stores = [...new Set(products.map(p => p.sustainability.store))].sort()
@@ -352,11 +362,12 @@ export default function SwipePage() {
             <X size={24} />
           </button>
 
-          <Link href={`/try-on/${currentOutfit.id}`}>
-            <button className="w-14 h-14 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 flex items-center justify-center text-white shadow-lg hover:scale-110 transition-all duration-300">
-              <Shirt size={24} />
-            </button>
-          </Link>
+          <button
+            onClick={handleTryOn}
+            className="w-14 h-14 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 flex items-center justify-center text-white shadow-lg hover:scale-110 transition-all duration-300"
+          >
+            <Shirt size={24} />
+          </button>
 
           <button
             onClick={() => handleSwipe("right")}
